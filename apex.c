@@ -1,6 +1,7 @@
 #include<stdio.h> 
 #include <stdlib.h>
 #include <string.h>
+#define MAX_PATH = 50
 
 void menu(){
 	printf("\nSince you didn't run the program with arguments, here's the menu to help you out:)\n");
@@ -19,7 +20,6 @@ void parseCommandLine(int argc, char *argv[]){
 	}
 }
 
-
 //main function with command line argument count and array of command line arguments
 //argc is the number of arguments and *argv[] is the array of arguments themselves
 int main(int argc, char *argv[]) {
@@ -29,9 +29,6 @@ int main(int argc, char *argv[]) {
 	return 0;
 
 }
-
-
-
 
 
 
