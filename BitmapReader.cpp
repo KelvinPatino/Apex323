@@ -134,9 +134,10 @@ bool isValidBitMap(char *filedata, BITMAPINFOHEADER *pFileInfo)
 
 	printf("Error, file did not obtain correct data starting position");
 	return false;
-}
+} else{
 
 return true;
+}
 	
 
 } // isValidBitMap
@@ -229,7 +230,7 @@ void Usage(char *programName)
 	fprintf(stdout, "Enter 1 to get information or 9 to exit: ");
 	scanf("%d", &choice);
 	
-
+	if(choice == 1){
 	fprintf(stdout, "To print bitmap information:\n\n");
 	fprintf(stdout, "%s -c < filename.bmp >\n\n", prgname);
 	
@@ -244,9 +245,10 @@ void Usage(char *programName)
 
 	fprintf(stdout, "\n\tNOTES:\n\t1.Order of parameters is irrelevant.\n\t2.All selections in \"[]\" are optional.\n\n");
 
-
-	system("pause");
-	exit(0);
+	}
+	else if(choice == 9){
+		exit(0);
+	}
 
 } // Usage
 
