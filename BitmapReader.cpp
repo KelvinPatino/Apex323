@@ -1,218 +1,257 @@
 // Bitmap Reader
-//
+// This program reads, displays, and processes BMP files, supporting actions such as hiding or extracting hidden data.
 
-#include "BitmapReader.h"
+#include "BitmapReader.h"  // Include the header with definitions for BITMAPFILEHEADER, BITMAPINFOHEADER, RGBQUAD, constants, etc.
 
-// Global Variables for File Data Pointers
+// =========================
+// GLOBAL VARIABLES
+// =========================
 
+// Pointers to BMP file headers
 BITMAPFILEHEADER *gpCoverFileHdr, *gpStegoFileHdr;
+
+// Pointers to BMP info headers
 BITMAPINFOHEADER *gpCoverFileInfoHdr, *gpStegoFileInfoHdr;
+
+// Pointers to color palettes (if used)
 RGBQUAD *gpCoverPalette, *gpStegoPalette;
+
+// File sizes for the cover, message, and stego BMP files
 unsigned int gCoverFileSize, gMsgFileSize, gStegoFileSize;
 
-// Command Line Global Variables
+// File path and file name storage for each file
 char gCoverPathFileName[MAX_PATH], *gCoverFileName;
 char gMsgPathFileName[MAX_PATH], *gMsgFileName;
 char gStegoPathFileName[MAX_PATH], *gStegoFileName;
-//char gInputPathFileName[MAX_PATH], *gInputFileName;
-//char gOutputPathFileName[MAX_PATH], *gOutputFileName;
-char gAction;						// typically hide (1), extract (2), wipe (3), randomize (4), but also specifies custom actions for specific programs
+
+// Action to perform (e.g., hide, extract, etc.)
+char gAction;
+
+// Number of bits to use for hiding/extracting data
 char gBitsToSet;
 
+// =========================
+// Initialize global variables
+// =========================
 void initGlobals()
 {
-	gpCoverFileHdr = NULL;
-	gpStegoFileHdr = NULL;
-	gpCoverFileInfoHdr = NULL;
-	gpStegoFileInfoHdr = NULL;
-	gpCoverPalette = NULL;
-	gpStegoPalette = NULL;
-	gCoverFileSize = gMsgFileSize = gStegoFileSize = 0;
+    // Reset all pointer variables to NULL
+    gpCoverFileHdr = NULL;
+    gpStegoFileHdr = NULL;
+    gpCoverFileInfoHdr = NULL;
+    gpStegoFileInfoHdr = NULL;
+    gpCoverPalette = NULL;
+    gpStegoPalette = NULL;
 
-	// Command Line Global Variables
-	gCoverPathFileName[0] = 0;
-	gCoverFileName = NULL;
-	gMsgPathFileName[0] = 0;
-	gMsgFileName = NULL;
-	gStegoPathFileName[0] = 0;
-	gStegoFileName = NULL;
-	gAction = 0;						// typically hide (1), extract (2)
-	gBitsToSet = 1;
+    // Reset file sizes
+    gCoverFileSize = gMsgFileSize = gStegoFileSize = 0;
 
-	return;
-} // initGlobals
+    // Reset all command-line string paths and file name pointers
+    gCoverPathFileName[0] = 0;
+    gCoverFileName = NULL;
+    gMsgPathFileName[0] = 0;
+    gMsgFileName = NULL;
+    gStegoPathFileName[0] = 0;
+    gStegoFileName = NULL;
+
+    gAction = 0;       // Default action is none
+    gBitsToSet = 1;    // Default to 1 bit per pixel for steganography
+
+    return;
+}
+
+// =========================
+// Display BMP file info
+// =========================
 void displayFileInfo(char *pFileName,
-					 BITMAPFILEHEADER *pFileHdr, 
-					 BITMAPINFOHEADER *pFileInfo,
-					 RGBQUAD *ptrPalette,
-					 unsigned char *pixelData)
+                     BITMAPFILEHEADER *pFileHdr, 
+                     BITMAPINFOHEADER *pFileInfo,
+                     RGBQUAD *ptrPalette,
+                     unsigned char *pixelData)
 {
-	int numColors, i;
+    int numColors, i;
 
-	printf("\nFile Information for %s: \n\n", pFileName);
-	printf("File Header Info:\n");
-	printf("File Type: %c%c\nFile Size:%d\nData Offset:%d\n\n", 
-		(pFileHdr->bfType & 0xFF), (pFileHdr->bfType >> 8), pFileHdr->bfSize, pFileHdr->bfOffBits);
+    // Print the name of the file being analyzed
+    printf("\nFile Information for %s: \n\n", pFileName);
 
-	switch(pFileInfo->biBitCount)
-	{
-	case 1:
-		numColors = 2;
-		break;
-	case 4:
-		numColors = 16;
-		break;
-	case 8:
-		numColors = 256;
-		break;
-	case 16:
-		numColors = 65536;
-		break;
-	case 24:
-		numColors = 16777216;
-		break;
-	default:
-		numColors = -1;
-	}
+    // Show file header details
+    printf("File Header Info:\n");
+    printf(
+    "File Type: %c%c\n"       // Display 2-character file type (usually "BM" for Bitmap)
+    "File Size: %d\n"         // Display file size in bytes
+    "Data Offset: %d\n\n",    // Display offset to pixel data
+     
+    // Extract and print the first character of bfType
+    // bfType is a 16-bit value (e.g., 0x4D42 for "BM")
+    // & 0xFF extracts the lower byte (e.g., 0x42 -> 'B')
+    (pFileHdr->bfType & 0xFF),
 
-	printf("Bit Map Image Info:\n\nSize Info Header:%d\nWidth:%d\nHeight:%d\nPlanes:%d\n"
-		"Bits/Pixel:%d ==> %d colors\n"
-		"Compression:%d\nImage Size:%d\nRes X:%d\nRes Y:%d\nColors:%d\nImportant Colors:%d\n\n",
-		pFileInfo->biSize, 
-		pFileInfo->biWidth, 
-		pFileInfo->biHeight, 
-		pFileInfo->biPlanes, 
-		pFileInfo->biBitCount, numColors,
-		pFileInfo->biCompression, 
-		pFileInfo->biSizeImage, 
-		pFileInfo->biXPelsPerMeter,
-		pFileInfo->biYPelsPerMeter,
-		pFileInfo->biClrUsed,
-		pFileInfo->biClrImportant);
+    // Shift right 8 bits to get the high byte (e.g., 0x4D -> 'M')
+    (pFileHdr->bfType >> 8),
 
-	//	There are no palettes
-	if(pFileInfo->biBitCount >=24 || numColors == 0)
-	{
-		printf("\nNo Palette\n\n");
-	}
-	else
-	{
-		printf("Palette:\n\n");
+    // Print the total size of the BMP file in bytes
+    pFileHdr->bfSize,
 
-		for(i = 0; i < numColors; i++)
-		{
-			printf("R:%02x   G:%02x   B:%02x\n", ptrPalette->rgbRed, ptrPalette->rgbGreen, ptrPalette->rgbBlue);
-			ptrPalette++;
-		}
-	}
+    // Print the byte offset where pixel data begins
+    // For standard BMPs, this is usually 54 (14-byte file header + 40-byte info header)
+    pFileHdr->bfOffBits
+);
 
-	// print first 24 bytes of pixel data
-	printf("\n Pixel Data: \n\n");
+    // Determine the number of colors based on bits per pixel
+    switch(pFileInfo->biBitCount)
+    {
+        case 1: numColors = 2; break;
+        case 4: numColors = 16; break;
+        case 8: numColors = 256; break;
+        case 16: numColors = 65536; break;
+        case 24: numColors = 16777216; break;
+        default: numColors = -1; break;
+    }
+
+    // Display image header info
+    printf("Bit Map Image Info:\n\nSize Info Header:%d\nWidth:%d\nHeight:%d\nPlanes:%d\n"
+           "Bits/Pixel:%d ==> %d colors\n"
+           "Compression:%d\nImage Size:%d\nRes X:%d\nRes Y:%d\nColors:%d\nImportant Colors:%d\n\n",
+           pFileInfo->biSize, 
+           pFileInfo->biWidth, 
+           pFileInfo->biHeight, 
+           pFileInfo->biPlanes, 
+           pFileInfo->biBitCount, numColors,
+           pFileInfo->biCompression, 
+           pFileInfo->biSizeImage, 
+           pFileInfo->biXPelsPerMeter,
+           pFileInfo->biYPelsPerMeter,
+           pFileInfo->biClrUsed,
+           pFileInfo->biClrImportant);
+
+    // If palette is used (only for <= 8-bit images), display it
+    if(pFileInfo->biBitCount > 16 || numColors == -1)
+    {
+        printf("\nNo Palette\n\n");
+    }
+    else
+    {
+        printf("Palette:\n\n");
+        for(i = 0; i < numColors; i++)
+        {
+            printf("R:%02x   G:%02x   B:%02x\n", 
+                   ptrPalette->rgbRed, ptrPalette->rgbGreen, ptrPalette->rgbBlue);
+            ptrPalette++;
+        }
+    }
+
+    // Display first 24 bytes of pixel data for preview
+    printf("\n Pixel Data: \n\n");
+    // Loop through the first 24 bytes of the pixel data
 	for(int i = 0; i < 24; i++)
 	{
-		printf("%02X ", *(pixelData + i) );
+		// Dereference the pointer to get the byte at position i
+		// and print it as a 2-digit uppercase hexadecimal number
+		// %02X = format specifier:
+		//   %X  = print as hex (uppercase)
+		//   02  = pad with zero if less than 2 digits (e.g., '0A', '3F', '00')
+		// *(pixelData + i) = get the byte i positions after pixelData
+		printf("%02X ", *(pixelData + i));
 	}
-	printf("\n\n");
-	return;
-} // displayFileInfo
+}
 
-// quick check for bitmap file validity - you may want to expand this or be more specfic for a particular bitmap type
+// =========================
+// Quick validity check for BMP format
+// =========================
 bool isValidBitMap(char *filedata, BITMAPINFOHEADER *pFileInfo, BITMAPFILEHEADER *pFileHdr)
 {
-	 char *pixelData;
+    char *pixelData;
 
 	if( filedata[0] != 'B' || filedata[1] != 'M') {
-	
 	printf("Error, file does not cotain a bitmap type");
 	return false;
-
 	}
+
 	if(pFileInfo->biBitCount < 24){
 
-	printf("Error, file does not cotain a 24 bitmap image");
-	return false;
+		printf("Error, file does not cotain a 24 bitmap image");
+		return false;
 
-//only allow a bitmap position to start at the bottome left 
+		//only allow a bitmap position to start at the bottome left 
 	}
-	if((pixelData - filedata) > pFileHdr->bfOffBits){
-
-	printf("Error, file did not obtain correct data starting position");
-	return false;
-	} 
-return true;
+	//if((pixelData - filedata) > pFileHdr->bfOffBits){
+	//	printf("Error, file did not obtain correct data starting position");
+	//	return false;
+	//} 
+	return true;
 	
+}
 
-} // isValidBitMap
-
-
-// reads specified bitmap file from disk
+// =========================
+// Read entire BMP file into memory
+// =========================
 unsigned char *readBitmapFile(char *fileName, unsigned int *fileSize)
 {
-	FILE *ptrFile;
-	unsigned char *pFile;
+    FILE *ptrFile;
+    unsigned char *pFile;
 
-	ptrFile = fopen(fileName, "rb");	// specify read only and binary (no CR/LF added)
+    // Open file for binary read
+    ptrFile = fopen(fileName, "rb");
+    if(ptrFile == NULL)
+    {
+        printf("Error in opening file: %s.\n\n", fileName);
+        exit(-1);
+    }
 
-	if(ptrFile == NULL)
-	{
-		printf("Error in opening file: %s.\n\n", fileName);
-		exit(-1);
-	}
-	
+    // Determine file size
+    fseek(ptrFile, 0, SEEK_END);
+    *fileSize = ftell(ptrFile);
+    fseek(ptrFile, 0, SEEK_SET);
 
-	fseek(ptrFile, 0, SEEK_END);
-	*fileSize = ftell(ptrFile);
-	fseek(ptrFile, 0, SEEK_SET);
+    // Allocate memory to store file contents
+    pFile = (unsigned char *) malloc(*fileSize);
+    if(pFile == NULL)
+    {
+        printf("Error - Could not allocate %d bytes of memory for bitmap file.\n\n", *fileSize);
+        exit(-1);
+    }
 
-	// malloc memory to hold the file, include room for the header and color table
-	pFile = (unsigned char *) malloc(*fileSize);
+    // Read entire file into buffer
+    fread(pFile, sizeof(unsigned char), *fileSize, ptrFile);
+    fclose(ptrFile);
 
-	if(pFile == NULL)
-	{
-		printf("Error - Could not allocate %d bytes of memory for bitmap file.\n\n", *fileSize);
-		exit(-1);
-	}
+    return(pFile);
+}
 
-	// Read in complete file
-	// buffer for data, size of each item, max # items, ptr to the file
-	fread(pFile, sizeof(unsigned char), *fileSize, ptrFile);
-	fclose(ptrFile);
-
-	return(pFile);
-} // readBitmapFile
-
-// writes modified bitmap file to disk
-// gMask used to determine the name of the file
+// =========================
+// Write buffer to disk as BMP file
+// =========================
 int writeFile(char *filename, int fileSize, unsigned char *pFile)
 {
-	FILE *ptrFile;
-	int x;
+    FILE *ptrFile;
+    int x;
 
-	// open the new file, MUST set binary format (text format will add line feed characters)
-	ptrFile = fopen(filename, "wb+");
-	if(ptrFile == NULL)
-	{
-		printf("Error opening file (%s) for writing.\n\n", filename);
-		exit(-1);
-	}
+    // Open file for binary write
+    ptrFile = fopen(filename, "wb+");
+    if(ptrFile == NULL)
+    {
+        printf("Error opening file (%s) for writing.\n\n", filename);
+        exit(-1);
+    }
 
-	// write the file
-	x = (int) fwrite(pFile, sizeof(unsigned char), fileSize, ptrFile);
+    // Write entire buffer to file
+    x = (int) fwrite(pFile, sizeof(unsigned char), fileSize, ptrFile);
+    if(x != fileSize)
+    {
+        printf("Error writing file %s.\n\n", filename);
+        exit(-1);
+    }
 
-	// check for success
-	if(x != fileSize)
-	{
-		printf("Error writing file %s.\n\n", filename);
-		exit(-1);
-	}
-	fclose(ptrFile); // close file
-	return(SUCCESS);
-} // writeFile
+    fclose(ptrFile);
+    return(SUCCESS);
+}
 
-// prints help message to the screen
+// =========================
+// Print usage/help message
+// =========================
 void Usage(char *programName)
 {
-	char prgname[MAX_PATH];
+    char prgname[MAX_PATH];
 	int idx;
 
 	idx = strlen(programName);
@@ -253,162 +292,162 @@ void Usage(char *programName)
 		exit(0);
 	}
 
-} // Usage
+}
 
+// =========================
+// Parse command-line arguments
+// =========================
 void parseCommandLine(int argc, char *argv[])
 {
-	int cnt;
+    int cnt;
 
-	if(argc < 2) Usage(argv[0]);
+    // If no arguments, show usage
+    if(argc < 2) Usage(argv[0]);
 
-	// RESET Parameters to make error checking easier
-	gAction = 0;
-	gCoverPathFileName[0] = 0;
-	gMsgPathFileName[0] = 0;
-	gStegoPathFileName[0] = 0;
-	cnt = 1;
-	while(cnt < argc)	// argv[0] = program name
-	{
-		if(_stricmp(argv[cnt], "-c") == 0)	// cover file
-		{
+    gAction = 0;
+    gCoverPathFileName[0] = 0;
+    gMsgPathFileName[0] = 0;
+    gStegoPathFileName[0] = 0;
+
+    cnt = 1;  // Start after program name
+
+    while(cnt < argc)
+    {
+        if(_stricmp(argv[cnt], "-c") == 0) // Cover file
+        {
+            cnt++;
+            if(cnt == argc) { fprintf(stderr, "Error - no file after %s\n", argv[cnt-1]); exit(-1); }
+			printf("after errorcheck\n");
+            if(gCoverPathFileName[0] != 0) { fprintf(stderr, "Cover file already specified.\n"); exit(-2); }
+			printf("after Cover file exist already check\n");
+			DWORD result = GetFullPathName(argv[cnt], MAX_PATH, gCoverPathFileName, &gCoverFileName);
+				if (result == 0 || result > MAX_PATH) {
+					fprintf(stderr, "Error: could not resolve path for %s\n", argv[cnt]);
+					exit(-1);
+				}
+			printf("next argument:%d=%s\ncoverpathfilename = %s\n", cnt, argv[cnt], gCoverPathFileName);
+
+        }
+        else if(_stricmp(argv[cnt], "-m") == 0) // Message file
+        {
+            cnt++;
+            if(cnt == argc) { fprintf(stderr, "Error - no file after %s\n", argv[cnt-1]); exit(-1); }
+            if(gMsgPathFileName[0] != 0) { fprintf(stderr, "Message file already specified.\n"); exit(-2); }
+			DWORD result = GetFullPathName(argv[cnt], MAX_PATH, gMsgPathFileName, &gMsgFileName);
+				if (result == 0 || result > MAX_PATH) {
+					fprintf(stderr, "Error: could not resolve path for %s\n", argv[cnt]);
+					exit(-1);
+				}
+        }
+        else if(_stricmp(argv[cnt], "-s") == 0) // Stego file
+        {
+            cnt++;
+            if(cnt == argc) { fprintf(stderr, "Error - no file after %s\n", argv[cnt-1]); exit(-1); }
+            if(gStegoPathFileName[0] != 0) { fprintf(stderr, "Stego file already specified.\n"); exit(-2); }
+            GetFullPathName(argv[cnt], MAX_PATH, gStegoPathFileName, &gStegoFileName);
+			DWORD result = GetFullPathName(argv[cnt], MAX_PATH, gStegoPathFileName, &gStegoFileName);
+				if (result == 0 || result > MAX_PATH) {
+					fprintf(stderr, "Error: could not resolve path for %s\n", argv[cnt]);
+					exit(-1);
+				}
+        }
+        else if(_stricmp(argv[cnt], "-b") == 0) // Bits to set
+        {
+            cnt++;
+            if(cnt == argc) { fprintf(stderr, "Error - no number after %s\n", argv[cnt-1]); exit(-1); }
+
+            char temp[3] = {0};
+            strncpy(temp, argv[cnt], 2); // Get first 2 characters
+            gBitsToSet = atoi(temp);
+
+            if(gBitsToSet < 1 || gBitsToSet > 7)
+            {
+                fprintf(stderr, "Bits to hide must be between 1 and 7.\n");
+                exit(-1);
+            }
+        }
+        else if(_stricmp(argv[cnt], "-hide") == 0) // Hide action
+        {
+            if(gAction) { fprintf(stderr, "Only one action allowed.\n"); exit(-1); }
+            gAction = ACTION_HIDE;
+            printf("you chose to hide!\n");
+        }
+        else if(_stricmp(argv[cnt], "-extract") == 0) // Extract action
+        {
+            if(gAction) { fprintf(stderr, "Only one action allowed.\n"); exit(-1); }
+            gAction = ACTION_EXTRACT;
+            printf("you chose to extract!\n");
+        }
+		else if(_stricmp(argv[cnt], "-copy") == 0) // Copy action
+        {
 			cnt++;
-			if(cnt == argc)
-			{
-				fprintf(stderr, "\n\nError - no file name following <%s> parameter.\n\n", argv[cnt-1]);
-				exit(-1);
+            if(gAction) { fprintf(stderr, "Only one action allowed.\n"); exit(-1); }
+            gAction = ACTION_COPY;
+			printf("\nyou chose to copy\n");
+        }
+		else{
+			printf("all else case\n");
+			printf("\ncurrent arg counter: %d, official argcount: %d\n", cnt, argc);
+			if (cnt == argc){
+				printf("\nreached end of arguments, exiting while loop\n");
 			}
-
-			if(gCoverPathFileName[0] != 0)
-			{
-				fprintf(stderr, "\n\nError - cover file <%s> already specified.\n\n", gCoverPathFileName);
-				exit(-2);
-			}
-			GetFullPathName(argv[cnt], MAX_PATH, gCoverPathFileName, &gCoverFileName);
-		}
-
-		else if(_stricmp(argv[cnt], "-m") == 0)	// msg file
-		{
 			cnt++;
-			if(cnt == argc)
-			{
-				fprintf(stderr, "\n\nError - no file name following <%s> parameter.\n\n", argv[cnt-1]);
-				exit(-1);
-			}
-
-			if(gMsgPathFileName[0] != 0)
-			{
-				fprintf(stderr, "\n\nError - message file <%s> already specified.\n\n", gMsgPathFileName);
-				exit(-2);
-			}
-
-			GetFullPathName(argv[cnt], MAX_PATH, gMsgPathFileName, &gMsgFileName);
 		}
-		else if(_stricmp(argv[cnt], "-s") == 0) // stego file
-		{
-			cnt++;
-			if(cnt == argc)
-			{
-				fprintf(stderr, "\n\nError - no file name following '%s' parameter.\n\n", argv[cnt-1]);
-				exit(-1);
-			}
+    }
+	printf("\n done parsing arguments. action= %d\n", gAction);
+}
 
-			if(gStegoPathFileName[0] != 0)
-			{
-				fprintf(stderr, "\n\nError - stego file <%s> already specified.\n\n", gStegoPathFileName);
-				exit(-2);
-			}
-
-			GetFullPathName(argv[cnt], MAX_PATH, gStegoPathFileName, &gStegoFileName);
-		}
-		else if(_stricmp(argv[cnt], "-b") == 0)	// set # of bits
-		{
-			cnt++;
-			if(cnt == argc)
-			{
-				fprintf(stderr, "\n\nInput Error - no number following '%s' parameter.\n\n", argv[cnt-1]);
-				exit(-1);
-			}
-
-			// the range for gBitsToSet is 1 - 7
-			// here, we copy the first two characters, of the command line arugment
-			// that should be the robustness factor, and convert it to an integer
-			char temp[3] = {0};
-        	strncpy(temp, argv[cnt], 2);
-			gBitsToSet = atoi(temp);
-
-			if(gBitsToSet < 1 || gBitsToSet > 7)	// for this program, 7 is the max
-			{
-				fprintf(stderr, "\n\nThe number of bits to hide is out of range (1 - 7).\n\n");
-				exit(-1);
-			}
-		}
-		else if(_stricmp(argv[cnt], "-hide") == 0)	// hide
-		{
-			if(gAction)
-			{
-				fprintf(stderr, "\n\nError, an action has already been specified.\n\n");
-				exit(-1);
-			}
-
-			gAction = ACTION_HIDE;
-			printf("you chose to hide!\n");
-		}
-		else if(_stricmp(argv[cnt], "-extract") == 0)	// extract
-		{
-			if(gAction)
-			{
-				fprintf(stderr, "\n\nError, an action has already been specified.\n\n");
-				exit(-1);
-			}
-
-			gAction = ACTION_EXTRACT;
-			printf("you shose to extract!\n");
-		}
-		//*/
-
-		cnt++;
-	} // end while loop
-
-	return;
-} // parseCommandLine
-
-// Main function
-// Parameters are used to indicate the input file and available options
+// =========================
+// Main Program Entry Point
+// =========================
 int main(int argc, char *argv[])
 {
-	unsigned char *coverData, *pixelData;
+    unsigned char *coverData, *pixelData;
 
-	// get the number of bits to use for data hiding or data extracting
-	// if not specified, default to one
-	initGlobals();
+    // Initialize variables
+    initGlobals();
 
-	parseCommandLine(argc, argv);
-
-// take appropriate actions based on user inputs
-// example opening cover bitmap
-
-	if(gCoverPathFileName[0] != 0)
-	{
-		coverData = readBitmapFile(gCoverPathFileName, &gCoverFileSize);
-
-		gpCoverFileHdr = (BITMAPFILEHEADER *) coverData;
-
-		gpCoverFileInfoHdr = (BITMAPINFOHEADER *) (coverData + sizeof(BITMAPFILEHEADER) );
-		
-    if(!isValidBitMap((char*)coverData, gpCoverFileInfoHdr, gpCoverFileHdr))
+    // Parse user input
+    parseCommandLine(argc, argv);
+	printf("\narguments parsed\n");
+    // If a cover file is specified, read and display its contents
+    if(gCoverPathFileName[0] != 0)
     {
-        free(coverData);  
-        exit(-1);
+		printf("\ncoverfile specified\n");
+        // Read BMP file into memory
+        coverData = readBitmapFile(gCoverPathFileName, &gCoverFileSize);
+
+        // Assign pointers to various BMP structures
+        gpCoverFileHdr = (BITMAPFILEHEADER *) coverData;
+        gpCoverFileInfoHdr = (BITMAPINFOHEADER *) (coverData + sizeof(BITMAPFILEHEADER));
+		if(!isValidBitMap((char*)coverData, gpCoverFileInfoHdr, gpCoverFileHdr))
+		{
+			free(coverData);  
+			exit(-1);
+		}
+        gpCoverPalette = (RGBQUAD *) (coverData + sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER));
+        pixelData = coverData + gpCoverFileHdr->bfOffBits;
+
+        // Display file header, info header, palette, and pixel data
+        displayFileInfo(gCoverPathFileName, gpCoverFileHdr, gpCoverFileInfoHdr, gpCoverPalette, pixelData);
+		//void displayFileInfo(char *pFileName, BITMAPFILEHEADER *pFileHdr,  BITMAPINFOHEADER *pFileInfo, RGBQUAD *ptrPalette, unsigned char *pixelData)
+
     }
+	if(gAction == 3 && gCoverPathFileName[0] !=0 ){
+		printf("\nYou chose to copy a cover file: \n");
+		//int writeFile(char *filename, int fileSize, unsigned char *pFile)
+		char outputName[11] = "output.bmp";
+		int coverFileSize = (int) gCoverFileSize;
+		int didWriteFile = writeFile(outputName,coverFileSize, coverData  );
+		if (didWriteFile){
+			printf("\nFile succesfully Output\n");
+		}
+		else{
+			printf("\n File failed to write\n");
+		}
+	
 
-		// there might not exist a palette - I don't check here, but you can see how in display info
-		gpCoverPalette = (RGBQUAD *) ( (char *) coverData + sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) );
-
-		pixelData = coverData + gpCoverFileHdr->bfOffBits;
-
-		displayFileInfo(gCoverPathFileName, gpCoverFileHdr, gpCoverFileInfoHdr, gpCoverPalette, pixelData);
 	}
-	return 0;
-} // main
 
-
+    return 0;
+}
