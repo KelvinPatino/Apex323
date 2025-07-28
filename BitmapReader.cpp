@@ -91,7 +91,7 @@ void displayFileInfo(char *pFileName,
 		pFileInfo->biClrImportant);
 
 	//	There are no palettes
-	if(pFileInfo->biBitCount > 16 || numColors == -1)
+	if(pFileInfo->biBitCount >=24 || numColors == 0)
 	{
 		printf("\nNo Palette\n\n");
 	}
@@ -117,27 +117,29 @@ void displayFileInfo(char *pFileName,
 } // displayFileInfo
 
 // quick check for bitmap file validity - you may want to expand this or be more specfic for a particular bitmap type
-bool isValidBitMap(char *filedata, BITMAPINFOHEADER *pFileInfo)
+bool isValidBitMap(char *filedata, BITMAPINFOHEADER *pFileInfo, BITMAPFILEHEADER *pFileHdr)
 {
+	 char *pixelData;
+
 	if( filedata[0] != 'B' || filedata[1] != 'M') {
 	
 	printf("Error, file does not cotain a bitmap type");
 	return false;
 
-	}else if(pFileInfo->biBitCount != 24){
+	}
+	if(pFileInfo->biBitCount < 24){
 
-	printf("Error, file does not cotain a 24 bitmap");
+	printf("Error, file does not cotain a 24 bitmap image");
 	return false;
 
 //only allow a bitmap position to start at the bottome left 
-	}else if(pFileInfo->biHeight < 0){
+	}
+	if((pixelData - filedata) > pFileHdr->bfOffBits){
 
 	printf("Error, file did not obtain correct data starting position");
 	return false;
-} else{
-
+	} 
 return true;
-}
 	
 
 } // isValidBitMap
@@ -156,6 +158,7 @@ unsigned char *readBitmapFile(char *fileName, unsigned int *fileSize)
 		printf("Error in opening file: %s.\n\n", fileName);
 		exit(-1);
 	}
+	
 
 	fseek(ptrFile, 0, SEEK_END);
 	*fileSize = ftell(ptrFile);
@@ -391,6 +394,12 @@ int main(int argc, char *argv[])
 		gpCoverFileHdr = (BITMAPFILEHEADER *) coverData;
 
 		gpCoverFileInfoHdr = (BITMAPINFOHEADER *) (coverData + sizeof(BITMAPFILEHEADER) );
+		
+    if(!isValidBitMap((char*)coverData, gpCoverFileInfoHdr, gpCoverFileHdr))
+    {
+        free(coverData);  
+        exit(-1);
+    }
 
 		// there might not exist a palette - I don't check here, but you can see how in display info
 		gpCoverPalette = (RGBQUAD *) ( (char *) coverData + sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) );
