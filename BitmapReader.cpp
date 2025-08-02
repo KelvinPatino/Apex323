@@ -202,6 +202,7 @@ int generateLSB(int R, int B){
 		}else if(diff <= 255){
 			return 7;
 		}
+		return diff;
 	}
 
 int CeilingCheck(int gCeilingBit, int tableBit){
@@ -213,37 +214,56 @@ int CeilingCheck(int gCeilingBit, int tableBit){
 	}
 }
 
-int extractBitMsg(int gCeilingBit,int R,int B, int tableValue, int diff){
-int extractionValue = ((R-B), *pixelData);
+int extractBitMsg(int gCeilingBit, int tableValue, BITMAPFILEHEADER *pFileHdr){
+int extractionValue = (pFileHdr->bfOffBits); 
+int pixelValue = 3 * 3; 
 int i;
-int bitDifference = diff;
 int extractedBits = 0;
 FILE *flptr;
-	if(extractionValue != 0){
-		if(tableValue != 0){
-			int tableBits = generateLSB(R,B);
-			int bitsToExtract = CeilingCheck(gCeilingBit,tableBits);
-			for(i = 0; i < bitsToExtract; i++){
-				 int bitValue = i;
-				 extractedBits = bitValue;
-				
-				return extractedBits;
 
-				flptr = fopen("StegoFile.bmp_PLACEHOLDER", "w");
-				fprintf(flptr, "%d\n", extractedBits);
-				fclose(flptr);
-			}
-
-			return 0;
-		}
-		
-		else if(bitDifference = NULL) {
-				printf("error: no bit value found");
-		}
-		return -1;
-	}
-
+FILE *bmpFileToExtract = fopen(gCoverPathFileName, "rb");
+if (!bmpFileToExtract){
+	printf("Cannot get file");
+	return -1;
 }
+		if(tableValue != 0){
+			int pixelLocation = extractionValue + pixelValue;
+			fseek(bmpFileToExtract, pixelLocation, SEEK_SET);
+
+			char pixelData[3];
+			fread(pixelData,3,1, bmpFileToExtract);
+			int rPixelValue = pixelData[2];
+			int bPixelValue = pixelData[0];
+			
+			int pixelValue = (rPixelValue > bPixelValue)?(rPixelValue-bPixelValue) : (bPixelValue-rPixelValue);
+				int checkDifference = (rPixelValue > bPixelValue) ? (rPixelValue-bPixelValue) : (bPixelValue-rPixelValue);
+
+				if(checkDifference != 0){
+					int bitExtraction = generateLSB(rPixelValue, bPixelValue);
+						bitExtraction = CeilingCheck(gCeilingBit,bitExtraction);
+						for(i=0; i < checkDifference; i++){
+							int newBit =(checkDifference >> i) & 1;
+							extractedBits = (newBit << i);
+						}
+
+						fclose(bmpFileToExtract);
+
+						flptr = fopen("Extracted_OUTPUT.bmp", "w");
+						if (flptr){
+							fprintf(flptr, "Bits Extracted: %d\n", extractedBits);
+							fprintf(flptr, "Number of bits extracted: %d\n", bitExtraction);
+							fclose(flptr);
+						}
+						return extractedBits;
+					}else{
+						printf("Sorry, no value was found in fourth pixel\n");
+						fclose(bmpFileToExtract);
+						return 0;
+					}
+				}
+					fclose(bmpFileToExtract);
+					return -1;
+	}
 
 // writes modified bitmap file to disk
 // gMask used to determine the name of the file
@@ -405,7 +425,7 @@ void parseCommandLine(int argc, char *argv[])
 				fprintf(stderr, "\n\nThe number of bits to hide is out of range (1 - 7).\n\n");
 				exit(-1);
 			}
-			gAction = ACTION_SET;
+			gCeilingBit = gBitsToSet;
 		}
 		else if(_stricmp(argv[cnt], "-hide") == 0)	// hide
 		{
@@ -490,7 +510,6 @@ int main(int argc, char *argv[])
 
 		}
 
-		int tableBit = (int) generateLSB;
 		
 	if(gAction == 4 && gCeilingBit != 0){
 				//embedd with gCeilingBit
@@ -503,8 +522,9 @@ int main(int argc, char *argv[])
 	} //bit selection 
 
 		
-	if(gAction == 2 && gMsgFileName){
-
+	if(gAction == 2 &&gCoverPathFileName[0] !=0){
+		printf("extraction processing..");
+		int result = extractBitMsg(gCeilingBit, 1, gpCoverFileHdr);
 
 	}
 		
